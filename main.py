@@ -15,6 +15,63 @@ PARAMS = {
     'location': PARAM_LOCATION,
 }
 
+def strain_applicants(soup: BeautifulSoup) -> str:
+    """
+    Strain the soup for the number of applicants.
+    """
+    class_options = [
+        'num-applicants__caption',
+        'tvm__text',
+    ]
+
+    for class_name in class_options:
+        spans = soup.find_all(
+            'span',
+            class_=class_name,
+        )
+        for span in spans:
+            t = span.get_text(strip=True)
+            m = re.search('(\d+)', t)
+            if m:
+                return m.group(1)
+            
+    return 'N/A'
+
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
+DT_PATTERNS = [
+    (r'(\d+)\s*minute[s]?\s*ago', 'minutes'),
+    (r'(\d+)\s*hour[s]?\s*ago', 'hours'),
+    (r'(\d+)\s*day[s]?\s*ago', 'days'),
+    (r'(\d+)\s*week[s]?\s*ago', 'weeks'),
+    (r'(\d+)\s*month[s]?\s*ago', 'months'),
+    (r'(\d+)\s*year[s]?\s*ago', 'years'),
+]
+
+def standardize_date(raw_date: str, now: datetime) -> str:
+    for pattern, time_unit in DT_PATTERNS:
+        m = re.search(pattern, raw_date)
+        if m:
+            value = int(m.group(1))
+            res = None
+            if time_unit == 'minutes':
+                res = now - timedelta(minutes=value)
+            elif time_unit == 'hours':
+                res = now - timedelta(hours=value)
+            elif time_unit == 'days':
+                res = now - timedelta(days=value)
+            elif time_unit == 'weeks':
+                res = now - timedelta(weeks=value)
+            elif time_unit == 'months':
+                res = now - timedelta(weeks=value*4)
+            elif time_unit == 'years':
+                res = now - timedelta(weeks=value*52)
+
+            if res is not None:
+                return res.isoformat().split('T')[0]
+            
+    return 'N/A'
+
 def main():
     r = requests.get(FULL_URL, params=PARAMS)
     print(r.status_code)
@@ -37,18 +94,15 @@ def main():
     # job_ids.add('3918910604')
 
     results = []
+    now = datetime.now()
     for job_id in job_ids:
         url = f"https://www.linkedin.com/jobs/view/{job_id}"
 
         print(f"Getting '{url}'...")
         r = requests.get(url)
 
-        # with open('index.html', 'r') as f:
-        #     r = f.read()
-
         # Parse.
         job_soup = BeautifulSoup(r.text, 'html.parser')
-        # job_soup = BeautifulSoup(r, 'html.parser')
 
         # Get job name.
         job_name_element = job_soup.find(
@@ -63,10 +117,7 @@ def main():
         )
 
         # Get number of applicants.
-        job_applicants_element = job_soup.find(
-            'figcaption',
-            class_='num-applicants__caption'
-        )
+        num_applicants = strain_applicants(job_soup)
 
         # Get post time.
         job_posttime_element = job_soup.find(
@@ -85,12 +136,14 @@ def main():
 
         data['job_name'] = 'N/A' if job_name_element is None else job_name_element.text.strip()
         data['company_name'] = 'N/A' if job_company_element is None else job_company_element.text.strip()
-        data['num_applicants'] = 'N/A' if job_applicants_element is None else job_applicants_element.text.strip()
+        data['num_applicants'] = num_applicants
         data['post_time'] = 'N/A' if job_posttime_element is None else job_posttime_element.text.strip()
+        data['std_post_time'] = standardize_date(data['post_time'], now)
         data['url'] = url
         data['salary_range'] = job_salary
 
         results.append(data)
+        break
 
     with open('data.json', 'w') as f:
         json.dump(results, f, indent=4)
