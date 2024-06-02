@@ -5,5 +5,23 @@
 {% endblock %}
 
 {% block content %}
-    <p>Scrape some LinkedIn jobs</p>
+    <div class="container">
+        <div class="form-group">
+            <div class="form-field">
+                <label for="query">Job Title:</label>
+                <input type="text" id="query" name="query" required>
+            </div>
+            <div class="form-field">
+                <label for="location">Location:</label>
+                <input type="text" id="location" name="location" required>
+            </div>
+            <button type="submit" id="search-button" onclick="search()">Search</button>
+
+            <div id="loading" style="display: none;">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 {% endblock %}
