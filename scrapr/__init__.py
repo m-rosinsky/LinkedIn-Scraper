@@ -9,4 +9,7 @@ def create_app():
     except OSError:
         pass
 
+    from . import index
+    app.register_blueprint(index.bp)
+
     return app
